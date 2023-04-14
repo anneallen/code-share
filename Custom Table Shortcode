@@ -1,0 +1,51 @@
+add_shortcode ('woo-customer-list','ns_sc_woo_customer_list');
+function ns_sc_woo_customer_list($atts){
+    extract(shortcode_atts(array(
+       'product_id' => 20186,
+    ), $atts));
+
+    
+    // Access WordPress database
+    global $wpdb;
+   
+    // Find billing emails in the DB order table
+    $statuses = array_map( 'esc_sql', wc_get_is_paid_statuses() );
+    $customer_emails = $wpdb->get_results("
+    SELECT DISTINCT pm.meta_value, pm1.meta_value as meta_value_1, pm2.meta_value as meta_value_2, i.order_id FROM {$wpdb->posts} AS p
+    INNER JOIN {$wpdb->postmeta} AS pm ON p.ID = pm.post_id
+    INNER JOIN {$wpdb->postmeta} AS pm1 ON p.ID = pm1.post_id
+    INNER JOIN {$wpdb->postmeta} AS pm2 ON p.ID = pm2.post_id
+    INNER JOIN {$wpdb->prefix}woocommerce_order_items AS i ON p.ID = i.order_id
+    INNER JOIN {$wpdb->prefix}woocommerce_order_itemmeta AS im ON i.order_item_id = im.order_item_id
+    WHERE p.post_status IN ( 'wc-" . implode( "','wc-", $statuses ) . "' )
+    AND pm1.meta_key IN ( '_billing_first_name' ) 
+    AND pm2.meta_key IN ( '_billing_last_name' )
+    AND pm.meta_key IN ( '_billing_email' )
+    AND im.meta_key IN ( '_product_id', '_variation_id' )
+    AND im.meta_value = $product_id
+    ");
+    
+    $returnstring = 
+    '<table>
+        <tr>
+            <th>Order Number</th>
+            <th>Email Address</th>
+            <th>First Name</th>
+            <th>Last Name</th>
+        </tr>';
+    foreach ($customer_emails as $customer_email) {
+        $returnstring .= 
+            '<tr>
+                <td><a href="'.$siteurl.'/wp-admin/post.php?post='.$customer_email->order_id.'&action=edit">'.$customer_email->order_id.'</a></td>
+                <td>'. $customer_email->meta_value.'</td>
+                <td>'. $customer_email->meta_value_1.'</td>
+                <td>'. $customer_email->meta_value_2.'</td>
+            </tr>';
+        }
+        $returnstring .= '
+    </table>
+    </div>';
+
+    return $returnstring;
+
+}
